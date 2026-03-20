@@ -1,37 +1,147 @@
 /* ============================================================
    KIIT Campus Graph Search Visualizer
-   Leaflet.js + Google Maps Satellite + OSM Traffic/Terrain
-   OSRM for real road routing — no API key required
+   Leaflet.js + Google Maps Satellite + Directions/Distance API
+   Google Maps APIs for real GPS road routing & distances
    Dual algorithm comparison mode
    ============================================================ */
 
+// ── GOOGLE MAPS API KEY ───────────────────────────────────────
+let GMAPS_KEY = localStorage.getItem('kiit_gmaps_key') || '';
+
+function getGmapsKey() { return GMAPS_KEY; }
+
+function saveGmapsKey(key) {
+  GMAPS_KEY = (key || '').trim();
+  localStorage.setItem('kiit_gmaps_key', GMAPS_KEY);
+}
+
+function showApiKeyModal(onSave) {
+  const existing = document.getElementById('api-key-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'api-key-modal';
+  modal.innerHTML = `
+    <div class="akm-overlay" id="akm-overlay"></div>
+    <div class="akm-card">
+      <div class="akm-header">
+        <div class="akm-title">🗝 Google Maps API Key</div>
+        <div class="akm-sub">Required for real GPS road distances & routing</div>
+      </div>
+      <div class="akm-body">
+        <div class="akm-info">
+          Enable these APIs in your Google Cloud Console:<br>
+          <span class="akm-tag">Directions API</span>
+          <span class="akm-tag">Distance Matrix API</span>
+        </div>
+        <label class="akm-lbl">Paste your API key</label>
+        <input id="akm-input" class="akm-input" type="password"
+               placeholder="AIza…" value="${GMAPS_KEY}"
+               autocomplete="off" spellcheck="false" />
+        <div id="akm-err" class="akm-err"></div>
+        <div class="akm-actions">
+          <button class="akm-btn akm-cancel" id="akm-cancel">Cancel</button>
+          <button class="akm-btn akm-save"   id="akm-save">Save & Use</button>
+        </div>
+        <div class="akm-note">
+          Key is stored only in your browser's localStorage.<br>
+          Without a key the app falls back to OSRM (free, less accurate).
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  setTimeout(() => modal.classList.add('akm-visible'), 10);
+
+  const inp = document.getElementById('akm-input');
+  const err = document.getElementById('akm-err');
+
+  document.getElementById('akm-save').addEventListener('click', () => {
+    const val = inp.value.trim();
+    if (!val) { err.textContent = 'Please enter a key.'; return; }
+    saveGmapsKey(val);
+    modal.remove();
+    if (onSave) onSave(val);
+  });
+
+  const close = () => modal.remove();
+  document.getElementById('akm-cancel').addEventListener('click', close);
+  document.getElementById('akm-overlay').addEventListener('click', close);
+}
+
 // ── CAMPUS DATA ───────────────────────────────────────────────
+ 
 const CAMPUSES = {
-  "Campus 1":  { lat: 20.346588, lng: 85.823628, emoji: "🏫", desc: "KIIT International School" },
-  "Campus 2":  { lat: 20.353611, lng: 85.819231, emoji: "🔧", desc: "Polytechnic" },
-  "Campus 3":  { lat: 20.353813, lng: 85.816548, emoji: "🔬", desc: "OAT & Research Innovation" },
-  "Campus 4":  { lat: 20.354212, lng: 85.820671, emoji: "💼", desc: "Training & Placement" },
-  "Campus 5":  { lat: 20.352994, lng: 85.814337, emoji: "🏥", desc: "School of Medical Sciences" },
-  "Campus 6":  { lat: 20.354204, lng: 85.819070, emoji: "❤️", desc: "ILOVEKIIT" },
-  "Campus 7":  { lat: 20.350960, lng: 85.819513, emoji: "🌿", desc: "MBA Garden" },
-  "Campus 8":  { lat: 20.351564, lng: 85.818995, emoji: "⚙️", desc: "School of Mechanical Engg" },
-  "Campus 9":  { lat: 20.353588, lng: 85.811733, emoji: "🏛️", desc: "Campus 9" },
-  "Campus 10": { lat: 20.364279, lng: 85.812222, emoji: "👥", desc: "School of Social Sciences" },
-  "Campus 11": { lat: 20.359166, lng: 85.822168, emoji: "🧬", desc: "School of Biotechnology" },
-  "Campus 12": { lat: 20.355618, lng: 85.820831, emoji: "⚡", desc: "School of Electronics" },
-  "Campus 13": { lat: 20.356679, lng: 85.819119, emoji: "🏅", desc: "KSAC-Sports Complex" },
-  "Campus 14": { lat: 20.357038, lng: 85.815250, emoji: "📖", desc: "IGNOU Study Centre" },
-  "Campus 15": { lat: 20.349957, lng: 85.815743, emoji: "💻", desc: "Old School of CSE" },
-  "Campus 16": { lat: 20.362152, lng: 85.823422, emoji: "⚖️", desc: "School of Law" },
-  "Campus 17": { lat: 20.349258, lng: 85.820649, emoji: "🏗️", desc: "Architecture Building" },
-  "Campus 18": { lat: 20.356172, lng: 85.824612, emoji: "📡", desc: "School of Mass Comm" },
-  "Campus 19": { lat: 20.354017, lng: 85.820317, emoji: "🚗", desc: "Automotive Mechatronics" },
-  "Campus 20": { lat: 20.354179, lng: 85.817762, emoji: "📚", desc: "Central Library" },
-  "Campus 21": { lat: 20.355500, lng: 85.817277, emoji: "📊", desc: "School of Management" },
-  "Campus 22": { lat: 20.354578, lng: 85.815152, emoji: "💡", desc: "Research & Innovation" },
-  "Campus 23": { lat: 20.356172, lng: 85.824812, emoji: "📰", desc: "School of Mass Comm Annex" },
-  "Campus 24": { lat: 20.354017, lng: 85.820517, emoji: "🔩", desc: "Automotive Mechatronics Annex" },
-  "Campus 25": { lat: 20.364674, lng: 85.817519, emoji: "🖥️", desc: "School of CSE" },
+  // c2 : 20.35330558061196, 85.81745177507682
+  //c3 : 20.353720510000336, 85.81652698760558
+  // c4 : 20.354229023769467, 85.81993695349236
+  // c5 : 20.353175276485025, 85.81393968000147
+  // c7: 20.350931640899677, 85.81949830033304
+  // c8  : 20.351584559499997, 85.81942992208738
+  // c9 : 20.35365909741175, 85.8115777490777
+  // c10 : 20.36416428165993, 85.81213437597323
+  // c11 : 20.358460385949467, 85.82170563266641
+  // c12 : 20.355546535850035, 85.82064352024275
+  // c13 :  20.356740105231694, 85.81845929140783
+  // c14 : 20.35627544679171, 85.81532473558255
+  // c15 : 20.348643881423463, 85.81610650560543
+  //c16 : 20.36212275944664, 85.82284829140787
+  //c17 : 20.349228070365353, 85.81940002024277
+  // c18 : 20.35614283503437, 85.82407082208736
+  //c20  : 20.354149866198533, 85.81618004907774 
+  // c21 : 20.355550653558943, 85.8163068490777
+  //c22 : 20.354407289205994, 85.81468550674762
+  // c25 : 20.36458694083531, 85.81695320674758
+  "Campus 1":  { lat: 20.346377296374715, lng: 85.82353770710048, emoji: "🏫", desc: "KIIT International School",
+    img: "images/C1.jpg" },
+  "Campus 2":  { lat:  20.35330558061196, lng: 85.81745177507682, emoji: "🔧", desc: "Polytechnic",
+    img: "images/C2.jpg" },
+  "Campus 3":  { lat:20.353720510000336, lng:  85.81652698760558, emoji: "🔬", desc: "OAT & Research Innovation",
+    img: "images/C3.jpg" },
+  "Campus 4":  { lat: 20.354229023769467, lng: 85.81993695349236, emoji: "💼", desc: "Training & Placement",
+    img: "images/C4.jpg" },
+  "Campus 5":  { lat: 20.353175276485025, lng: 85.81393968000147, emoji: "🏥", desc: "School of Medical Sciences",
+    img: "images/C5.jpg" },
+  "Campus 6":  { lat: 20.353461494869183, lng: 85.81959242126298, emoji: "❤️", desc: "ILOVEKIIT",
+    img: "images/C6.jpg" },
+  "Campus 7":  { lat: 20.350931640899677, lng: 85.81949830033304, emoji: "🌿", desc: "MBA Garden",
+    img: "images/C7.jpg" },
+  "Campus 8":  { lat: 20.351584559499997, lng: 85.81942992208738, emoji: "⚙️", desc: "School of Mechanical Engg",
+    img: "images/C8.jpg" },
+  "Campus 9":  { lat: 20.35365909741175, lng: 85.8115777490777, emoji: "🏛️", desc: "Campus 9",
+    img: "images/C9.jpg" },
+  "Campus 10": { lat: 20.36416428165993, lng: 85.81213437597323, emoji: "👥", desc: "School of Social Sciences",
+    img: "images/C10.jpg" },
+  "Campus 11": { lat: 20.358460385949467, lng: 85.82170563266641, emoji: "🧬", desc: "School of Biotechnology",
+    img: "images/C11.jpeg" },
+  "Campus 12": { lat: 20.355546535850035, lng: 85.82064352024275, emoji: "⚡", desc: "School of Electronics",
+    img: "images/C12.jpg" },
+  "Campus 13": { lat: 20.356740105231694, lng: 85.81845929140783, emoji: "🏅", desc: "KSAC (Sports Complex)",
+    img: "images/C13.png" },
+  "Campus 14": { lat: 20.35627544679171 , lng: 85.81532473558255, emoji: "📖", desc: "IGNOU Study Centre",
+    img: "images/C14.png" },
+  "Campus 15": { lat:20.348643881423463 , lng: 85.81610650560543, emoji: "💻", desc: "Old School of CSE",
+    img: "images/C15.jpg" },
+  "Campus 16": { lat: 20.36212275944664, lng: 85.82284829140787, emoji: "⚖️", desc: "School of Law",
+    img: "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=300&q=80" },
+  "Campus 17": { lat: 20.349228070365353, lng:85.81940002024277 , emoji: "🏗️", desc: "Architecture Building",
+    img: "images/C17.jpg" },
+  "Campus 18": { lat: 20.35614283503437, lng:  85.82407082208736, emoji: "📡", desc: "School of Mass Comm",
+    img: "images/C18.jpg" },
+  "Campus 19": { lat: 20.354017, lng: 85.820317, emoji: "🚗", desc: "Automotive Mechatronics",
+    img: "https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=300&q=80" },
+  "Campus 20": { lat: 20.354149866198533, lng: 85.81618004907774, emoji: "📚", desc: "Central Library",
+    img: "images/C20.jpeg" },
+  "Campus 21": { lat:  20.355550653558943, lng: 85.8163068490777, emoji: "📊", desc: "School of Management",
+    img: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=300&q=80" },
+  "Campus 22": { lat: 20.354407289205994, lng: 85.81468550674762, emoji: "💡", desc: "Research & Innovation",
+    img: "images/C22.jpg" },
+  "Campus 23": { lat: 20.356172, lng: 85.824812, emoji: "📰", desc: "School of Mass Comm Annex",
+    img: "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=300&q=80" },
+  "Campus 24": { lat: 20.354017, lng: 85.820517, emoji: "🔩", desc: "Automotive Mechatronics Annex",
+    img: "https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?w=300&q=80" },
+  "Campus 25": { lat:  20.36458694083531, lng:  85.81695320674758, emoji: "🖥️", desc: "School of CSE",
+    img: "images/C25.jpg" },
 };
 
 // ── GRAPH ─────────────────────────────────────────────────────
@@ -129,8 +239,8 @@ const PSEUDOCODES = {
 
 // ── COLOURS ───────────────────────────────────────────────────
 const COL = {
-  default:  '#14c2be',
-  start:    '#00c17a',
+  default:  '#f3f5f5',
+  start:    '#024100',
   end:      '#ff4b6e',
   visited:  '#ffd200',
   frontier: '#7c3aed',
@@ -240,53 +350,230 @@ function switchBase(view) {
   });
 }
 
-// ── OSRM ──────────────────────────────────────────────────────
+// ── ROUTING BACKEND ──────────────────────────────────────────
+// Priority: Google Maps Directions → OSRM driving → OSRM walking → haversine fallback
+// ALL paths are real road geometries — no straight lines between campuses.
+
+async function getRoadDistanceGoogle(n1, n2, key) {
+  const { lat: la1, lng: ln1 } = CAMPUSES[n1];
+  const { lat: la2, lng: ln2 } = CAMPUSES[n2];
+  const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${la1},${ln1}&destinations=${la2},${ln2}&mode=driving&key=${key}`;
+  const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+  const res  = await fetch(proxy, { signal: AbortSignal.timeout(8000) });
+  const data = await res.json();
+  const body = JSON.parse(data.contents);
+  const el   = body.rows?.[0]?.elements?.[0];
+  if (el && el.status === 'OK') return el.distance.value;
+  return null;
+}
+
+async function getRoadPolylineGoogle(n1, n2, key) {
+  const { lat: la1, lng: ln1 } = CAMPUSES[n1];
+  const { lat: la2, lng: ln2 } = CAMPUSES[n2];
+  const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${la1},${ln1}&destination=${la2},${ln2}&mode=driving&key=${key}`;
+  const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+  const res  = await fetch(proxy, { signal: AbortSignal.timeout(10000) });
+  const data = await res.json();
+  const body = JSON.parse(data.contents);
+  if (body.routes && body.routes[0]) {
+    return decodePolyline(body.routes[0].overview_polyline.points);
+  }
+  return null;
+}
+
+// Decode Google's encoded polyline format
+function decodePolyline(encoded) {
+  const coords = [];
+  let index = 0, lat = 0, lng = 0;
+  while (index < encoded.length) {
+    let b, shift = 0, result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    coords.push([lat / 1e5, lng / 1e5]);
+  }
+  return coords;
+}
+
+// ── FULL GOOGLE DIRECTIONS (end-to-end best route) ───────────
+async function getGoogleBestRoute(start, end, key) {
+  const s = CAMPUSES[start], e = CAMPUSES[end];
+  const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${s.lat},${s.lng}&destination=${e.lat},${e.lng}&mode=driving&alternatives=true&key=${key}`;
+  const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+  try {
+    const res  = await fetch(proxy, { signal: AbortSignal.timeout(12000) });
+    const data = await res.json();
+    const body = JSON.parse(data.contents);
+    if (!body.routes || !body.routes[0]) return null;
+    let bestRoute = body.routes[0];
+    for (const route of body.routes) {
+      if (route.legs[0].distance.value < bestRoute.legs[0].distance.value) bestRoute = route;
+    }
+    const leg = bestRoute.legs[0];
+    return {
+      distance:    leg.distance.value,
+      distText:    leg.distance.text,
+      duration:    leg.duration.value,
+      durationText: leg.duration.text,
+      steps:       leg.steps.map(st => ({
+        instruction: st.html_instructions.replace(/<[^>]+>/g, ''),
+        distance:    st.distance.text,
+        duration:    st.duration.text,
+      })),
+      polyline:    decodePolyline(bestRoute.overview_polyline.points),
+      summary:     bestRoute.summary,
+    };
+  } catch (err) {
+    console.error('Google Directions error:', err);
+    return null;
+  }
+}
+
+// ── OSRM road polyline (driving profile only — public server) ─
+async function fetchOSRMPolyline(lng1, lat1, lng2, lat2, profile = 'driving') {
+  const url =
+    `https://router.project-osrm.org/route/v1/${profile}/` +
+    `${lng1},${lat1};${lng2},${lat2}` +
+    `?overview=full&geometries=geojson`;
+  const res  = await fetch(url, { signal: AbortSignal.timeout(12000) });
+  if (!res.ok) throw new Error(`OSRM HTTP ${res.status}`);
+  const data = await res.json();
+  if (data.code !== 'Ok' || !data.routes?.[0]) throw new Error('OSRM no route');
+  // Map [lng,lat] → [lat,lng] for Leaflet
+  return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+}
+
+async function fetchOSRMDistance(lng1, lat1, lng2, lat2, profile = 'driving') {
+  const url =
+    `https://router.project-osrm.org/route/v1/${profile}/` +
+    `${lng1},${lat1};${lng2},${lat2}?overview=false`;
+  const res  = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`OSRM HTTP ${res.status}`);
+  const data = await res.json();
+  if (data.code !== 'Ok' || !data.routes?.[0]) throw new Error('OSRM no route');
+  return Math.round(data.routes[0].distance);
+}
+
+// ── MAIN: getRoadPolyline ─────────────────────────────────────
+// Returns real road [[lat,lng]…] coords for the edge n1→n2.
+// NEVER returns a 2-point straight line — retries until road geometry found.
+async function getRoadPolyline(n1, n2) {
+  const cacheKey = [n1, n2].sort().join('|');
+  if (polylineCache[cacheKey]) return polylineCache[cacheKey];
+
+  const { lat: la1, lng: ln1 } = CAMPUSES[n1];
+  const { lat: la2, lng: ln2 } = CAMPUSES[n2];
+
+  // ── 1. Google Maps (if key available) ────────────────────────
+  const gKey = getGmapsKey();
+  if (gKey) {
+    try {
+      const coords = await getRoadPolylineGoogle(n1, n2, gKey);
+      if (coords && coords.length >= 3) {
+        polylineCache[cacheKey] = coords; return coords;
+      }
+    } catch { /* fall through */ }
+  }
+
+  // ── 2. OSRM driving (public, most accurate for Indian roads) ─
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const coords = await fetchOSRMPolyline(ln1, la1, ln2, la2, 'driving');
+      if (coords.length >= 3) {
+        polylineCache[cacheKey] = coords; return coords;
+      }
+    } catch { /* retry */ }
+    await sleep(400 * (attempt + 1));
+  }
+
+  // ── 3. OSRM walking (fallback profile) ───────────────────────
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const coords = await fetchOSRMPolyline(ln1, la1, ln2, la2, 'walking');
+      if (coords.length >= 3) {
+        polylineCache[cacheKey] = coords; return coords;
+      }
+    } catch { /* retry */ }
+    await sleep(500);
+  }
+
+  // ── 4. OpenRouteService (free, no key required) ───────────────
+  try {
+    const orsUrl =
+      `https://api.openrouteservice.org/v2/directions/driving-car?` +
+      `start=${ln1},${la1}&end=${ln2},${la2}`;
+    const res  = await fetch(orsUrl, {
+      headers: { 'Accept': 'application/geo+json, application/json' },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.ok) {
+      const data   = await res.json();
+      const coords = data.features?.[0]?.geometry?.coordinates?.map(c => [c[1], c[0]]);
+      if (coords && coords.length >= 3) {
+        polylineCache[cacheKey] = coords; return coords;
+      }
+    }
+  } catch { /* fall through */ }
+
+  // ── 5. Densified straight line — last resort, clearly flagged ─
+  console.warn(`[K-Search] Road routing failed for ${n1}→${n2}. Using straight line.`);
+  const pts = [];
+  for (let i = 0; i <= 20; i++) {
+    pts.push([la1 + (la2 - la1) * i / 20, ln1 + (ln2 - ln1) * i / 20]);
+  }
+  polylineCache[cacheKey] = pts;
+  return pts;
+}
+
+// ── MAIN: getRoadDistance ─────────────────────────────────────
 async function getRoadDistance(n1, n2) {
   const key = [n1, n2].sort().join('|');
   if (roadDistCache[key] !== undefined) return roadDistCache[key];
   const { lat: la1, lng: ln1 } = CAMPUSES[n1];
   const { lat: la2, lng: ln2 } = CAMPUSES[n2];
-  try {
-    const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${ln1},${la1};${ln2},${la2}?overview=false`);
-    const data = await res.json();
-    const dist = (data.routes && data.routes[0]) ? Math.round(data.routes[0].distance) : Math.round(haversine(n1, n2));
-    roadDistCache[key] = dist;
-    return dist;
-  } catch {
-    const dist = Math.round(haversine(n1, n2));
-    roadDistCache[key] = dist;
-    return dist;
-  }
-}
 
-async function getRoadPolyline(n1, n2) {
-  const { lat: la1, lng: ln1 } = CAMPUSES[n1];
-  const { lat: la2, lng: ln2 } = CAMPUSES[n2];
+  const gKey = getGmapsKey();
+  if (gKey) {
+    try {
+      const dist = await getRoadDistanceGoogle(n1, n2, gKey);
+      if (dist !== null) { roadDistCache[key] = dist; return dist; }
+    } catch { /* fall through */ }
+  }
+
   try {
-    const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${ln1},${la1};${ln2},${la2}?overview=full&geometries=geojson`);
-    const data = await res.json();
-    if (data.routes && data.routes[0]) {
-      return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-    }
-  } catch {}
-  return [[la1, ln1], [la2, ln2]];
+    const dist = await fetchOSRMDistance(ln1, la1, ln2, la2, 'driving');
+    roadDistCache[key] = dist; return dist;
+  } catch { /* fall through */ }
+
+  try {
+    const dist = await fetchOSRMDistance(ln1, la1, ln2, la2, 'walking');
+    roadDistCache[key] = dist; return dist;
+  } catch { /* fall through */ }
+
+  const dist = Math.round(haversine(n1, n2));
+  roadDistCache[key] = dist; return dist;
 }
 
 async function preloadEdgeDistances() {
-  setRouteStatus('Fetching road distances…', '');
   const pairs = [];
-  const seen = new Set();
+  const seen  = new Set();
   Object.entries(GRAPH).forEach(([from, nb]) => {
     Object.keys(nb).forEach(to => {
       const key = [from, to].sort().join('|');
       if (!seen.has(key)) { seen.add(key); pairs.push([from, to]); }
     });
   });
-  const BATCH = 4;
-  for (let i = 0; i < pairs.length; i += BATCH) {
-    await Promise.all(pairs.slice(i, i + BATCH).map(([a, b]) => getRoadDistance(a, b)));
-    setRouteStatus(`Loading road data… ${Math.min(i + BATCH, pairs.length)}/${pairs.length}`, '');
+
+  for (let i = 0; i < pairs.length; i++) {
+    const [a, b] = pairs[i];
+    await getRoadDistance(a, b);
+    setRouteStatus(`Loading road distances… ${i + 1}/${pairs.length}`, '');
+    await sleep(100);
   }
+
+  // Push real road distances into graph weights for algorithm use
   seen.clear();
   Object.entries(GRAPH).forEach(([from, nb]) => {
     Object.keys(nb).forEach(to => {
@@ -298,8 +585,11 @@ async function preloadEdgeDistances() {
   setRouteStatus('Road data ready ✓', 'ok');
 }
 
+// ── DRAW GRAPH EDGES AS REAL ROAD POLYLINES ──────────────────
+// Each edge is fetched from OSRM/Google and drawn along actual roads.
+// Polylines are cached in polylineCache for traversal & path animation reuse.
 async function drawEdges() {
-  const seen = new Set();
+  const seen  = new Set();
   const pairs = [];
   Object.entries(GRAPH).forEach(([from, nb]) => {
     Object.keys(nb).forEach(to => {
@@ -307,37 +597,71 @@ async function drawEdges() {
       if (!seen.has(key)) { seen.add(key); pairs.push([from, to]); }
     });
   });
-  const BATCH = 4;
-  for (let i = 0; i < pairs.length; i += BATCH) {
-    await Promise.all(pairs.slice(i, i + BATCH).map(async ([a, b]) => {
-      const coords = await getRoadPolyline(a, b);
-      // cache for traversal animation
-      const key = [a, b].sort().join('|');
-      polylineCache[key] = coords;
-      const pl = L.polyline(coords, { color: COL.default, weight: 3.5, opacity: 0.9 }).addTo(map);
-      edgeRoadLayers.push(pl);
-    }));
+
+  for (let i = 0; i < pairs.length; i++) {
+    const [a, b] = pairs[i];
+    setRouteStatus(`Drawing road edges… ${i + 1}/${pairs.length}`, '');
+
+    // getRoadPolyline caches internally — guaranteed road geometry
+    const coords = await getRoadPolyline(a, b);
+
+    // Only draw if we got real road points (not a 2-point straight line)
+    const pl = L.polyline(coords, {
+      color:     COL.default,
+      weight:    coords.length > 3 ? 3 : 2,   // thinner for fallback lines
+      opacity:   coords.length > 3 ? 0.6 : 0.3,
+      dashArray: coords.length > 3 ? '5 7' : '2 8',
+      lineJoin:  'round',
+      lineCap:   'round',
+    }).addTo(map);
+    edgeRoadLayers.push(pl);
+
+    // Rate-limit: small gap between requests
+    await sleep(150);
   }
 }
 
-// ── MARKER ICON ───────────────────────────────────────────────
-function makeEmojiIcon(name, borderColor, size) {
-  const sz = size || 38;
-  const fs = Math.round(sz * 0.45);
+// ── MARKER ICON (map-pin / teardrop style) ───────────────────
+function makeMapPinIcon(name, borderColor, size) {
+  const sz = size || 40;
   const data = CAMPUSES[name];
+  const num = name.replace('Campus ', '');
+  const pulse = (borderColor === COL.start || borderColor === COL.end) ? 'emark-pulse' : '';
+
+  // Pin body height = sz * 1.35, width = sz
+  const pinW = sz;
+  const pinH = Math.round(sz * 1.35);
+  const bodyR = Math.round(sz * 0.46);   // circle radius inside the pin head
+
   return L.divIcon({
     className: '',
-    html: `<div class="emark" style="width:${sz}px;height:${sz}px;border-color:${borderColor};background:${borderColor}18;font-size:${fs}px" title="${name}">${data.emoji}</div>`,
-    iconSize:   [sz, sz],
-    iconAnchor: [sz/2, sz/2],
-    popupAnchor:[0, -(sz/2 + 4)],
+    html: `
+      <div class="emark-wrap ${pulse}" style="width:${pinW}px;height:${pinH}px" title="${name}: ${data.desc}">
+        <svg class="emark-pin-svg" viewBox="0 0 40 54" xmlns="http://www.w3.org/2000/svg"
+             width="${pinW}" height="${pinH}">
+          <!-- Drop shadow -->
+          <ellipse cx="20" cy="52" rx="7" ry="2.5" fill="rgba(0,0,0,0.35)"/>
+          <!-- Pin body -->
+          <path d="M20 1 C10 1 3 8.5 3 18 C3 28 20 51 20 51 C20 51 37 28 37 18 C37 8.5 30 1 20 1 Z"
+                fill="${borderColor}" stroke="rgba(255,255,255,0.25)" stroke-width="1.2"/>
+          <!-- Inner circle cutout -->
+          <circle cx="20" cy="18" r="11" fill="rgba(0,0,0,0.55)"/>
+          <!-- Campus number -->
+          <text x="20" y="22.5" text-anchor="middle" dominant-baseline="middle"
+                font-family="'JetBrains Mono',monospace" font-size="${num.length > 2 ? '8' : '9'}"
+                font-weight="700" fill="#ffffff" letter-spacing="-0.5">${num}</text>
+        </svg>
+      </div>`,
+    iconSize:   [pinW, pinH],
+    iconAnchor: [pinW / 2, pinH],        // anchor at the tip
+    popupAnchor:[0, -(pinH + 4)],
   });
 }
 
 function setMarkerColor(name, type) {
   const col = COL[type] || COL.default;
-  const sz  = (type === 'start' || type === 'end') ? 46 : 38;
-  markers[name].setIcon(makeEmojiIcon(name, col, sz));
+  const sz  = (type === 'start' || type === 'end') ? 50 : 40;
+  markers[name].setIcon(makeMapPinIcon(name, col, sz));
 }
 
 // ── CAMPUS LEGEND ─────────────────────────────────────────────
@@ -538,76 +862,72 @@ function runAlgo(name, start, end) {
 }
 
 // ── TRAVERSAL EDGE FLASH ──────────────────────────────────────
-// Called during exploration animation — flashes a road segment
-// from→to in the frontier colour, then fades it out.
+// Highlights the REAL road polyline for a graph edge during exploration.
+// polylineCache is guaranteed to hold road geometry after drawEdges() completes.
 function drawTraversalEdge(from, to, isB) {
-  const key = [from, to].sort().join('|');
+  const key    = [from, to].sort().join('|');
   const coords = polylineCache[key];
-  if (!coords || coords.length < 2) return;
+  if (!coords || coords.length < 2) return;   // edge not yet loaded — skip silently
 
   const color = isB ? COL.pathB : COL.frontier;
-
   const pl = L.polyline(coords, {
     color,
-    weight: 5,
-    opacity: 0.9,
+    weight:    5,
+    opacity:   0.9,
+    lineJoin:  'round',
+    lineCap:   'round',
     className: 'traversal-edge',
   }).addTo(map);
 
   traversalLayers.push(pl);
 
-  // Fade out after a short time (keep last ~8 visible for context)
-  const MAX_LIVE = 8;
-  if (traversalLayers.length > MAX_LIVE) {
+  // Keep only the last 10 live; quietly fade older ones
+  if (traversalLayers.length > 10) {
     const old = traversalLayers.shift();
-    // Fade old layer to dim instead of hard remove
-    try {
-      old.setStyle({ opacity: 0.18, weight: 2.5, color: COL.visited });
-    } catch (e) {}
+    try { old.setStyle({ opacity: 0.14, weight: 2, color: COL.visited }); } catch {}
   }
 }
 
 // ── DRAW FINAL ROAD PATH (animated, segment-by-segment) ───────
+// Uses polylineCache (real road geometry) for each hop in the path.
 async function drawRoadPath(path, colorKey, layerRef) {
-  if (layerRef.val) { map.removeLayer(layerRef.val); layerRef.val = null; }
+  if (layerRef.val) { try { map.removeLayer(layerRef.val); } catch {} layerRef.val = null; }
   if (!path || path.length < 2) return 0;
 
-  // Clear traversal highlights since we're drawing the real path
-  traversalLayers.forEach(pl => { try { map.removeLayer(pl); } catch(e){} });
+  // Clear traversal highlights
+  traversalLayers.forEach(pl => { try { map.removeLayer(pl); } catch {} });
   traversalLayers = [];
 
   const color = COL[colorKey] || COL.path;
 
-  // Collect all segment coords (already cached from drawEdges)
+  // Collect segment road coords from cache; fetch only if missing (shouldn't happen after drawEdges)
   const segCoords = [];
   for (let i = 0; i < path.length - 1; i++) {
-    const key = [path[i], path[i+1]].sort().join('|');
-    const coords = polylineCache[key] || await getRoadPolyline(path[i], path[i+1]);
-    if (!polylineCache[key]) polylineCache[key] = coords;
+    const cacheKey = [path[i], path[i+1]].sort().join('|');
+    const coords   = polylineCache[cacheKey] || await getRoadPolyline(path[i], path[i+1]);
     segCoords.push(coords);
   }
 
-  // Build a single empty polyline we'll grow point-by-point
+  // Animate: grow a single polyline point-by-point along real road coords
   const allPoints = [];
-  layerRef.val = L.polyline([], { color, weight: 7, opacity: 0.95, dashArray: '14 6' }).addTo(map);
+  layerRef.val = L.polyline([], {
+    color, weight: 7, opacity: 0.97,
+    lineJoin: 'round', lineCap: 'round',
+  }).addTo(map);
 
-  // Animate each segment in turn
-  const POINT_DELAY = 18; // ms per polyline point
-  for (let s = 0; s < segCoords.length; s++) {
-    const seg = segCoords[s];
-    for (let p = 0; p < seg.length; p++) {
-      allPoints.push(seg[p]);
+  const POINT_DELAY = 14; // ms per road point
+  for (const seg of segCoords) {
+    for (const pt of seg) {
+      allPoints.push(pt);
       layerRef.val.setLatLngs([...allPoints]);
       await sleep(POINT_DELAY);
     }
   }
 
-  // Fit map to the final path
   if (layerRef.val.getBounds().isValid()) {
-    map.fitBounds(layerRef.val.getBounds(), { padding: [40, 40] });
+    map.fitBounds(layerRef.val.getBounds(), { padding: [50, 50] });
   }
 
-  // Compute total road distance
   let total = 0;
   for (let i = 0; i < path.length - 1; i++) total += await getRoadDistance(path[i], path[i+1]);
   return total;
@@ -778,6 +1098,227 @@ function runCompare(start, end, speed) {
   });
 }
 
+// ── ALL ALGORITHMS BEST PATH COMPARISON ──────────────────────
+let allAlgosPathLayers = [];
+let googleRouteLayer  = null;
+
+async function runAllAlgosCompare(start, end) {
+  if (!start || !end || start === end) { alert('Select different start and end campuses.'); return; }
+
+  // Clear existing layers
+  allAlgosPathLayers.forEach(l => { try { map.removeLayer(l); } catch(e){} });
+  allAlgosPathLayers = [];
+  if (googleRouteLayer) { try { map.removeLayer(googleRouteLayer); } catch(e){} googleRouteLayer = null; }
+  if (defaultPathLayer) { try { map.removeLayer(defaultPathLayer); } catch(e){} defaultPathLayer = null; }
+
+  const algos = ['BFS', 'DFS', 'Dijkstra', 'UCS', 'AStar'];
+  const results = {};
+
+  setStatus('run', 'Analyzing…');
+  document.getElementById('btn-all-best').disabled = true;
+
+  // ── Run all graph algorithms ──
+  for (const algo of algos) {
+    const steps = runAlgo(algo, start, end);
+    const pathStep = steps.find(s => s.t === 'p');
+    const visited = steps.filter(s => s.t === 'v').length;
+    if (pathStep && pathStep.path.length) {
+      let dist = 0;
+      for (let i = 0; i < pathStep.path.length - 1; i++) {
+        dist += await getRoadDistance(pathStep.path[i], pathStep.path[i+1]);
+      }
+      results[algo] = { path: pathStep.path, dist, visited, steps: steps.length };
+    } else {
+      results[algo] = { path: [], dist: Infinity, visited, steps: steps.length };
+    }
+  }
+
+  // ── Fetch Google Maps direct best route ──
+  let googleResult = null;
+  const gKey = getGmapsKey();
+  if (gKey) {
+    setStatus('run', 'Fetching Google route…');
+    googleResult = await getGoogleBestRoute(start, end, gKey);
+  }
+
+  // Find best among graph algos
+  let bestAlgo = null, bestDist = Infinity;
+  for (const [algo, r] of Object.entries(results)) {
+    if (r.dist < bestDist) { bestDist = r.dist; bestAlgo = algo; }
+  }
+
+  // Draw graph algorithm paths
+  const ALGO_COLORS = {
+    BFS: '#00d4ff', DFS: '#a855f7', Dijkstra: '#ffd200', UCS: '#ff6b35', AStar: '#00e87a'
+  };
+
+  for (const [algo, r] of Object.entries(results)) {
+    if (!r.path.length) continue;
+    const segCoords = [];
+    for (let i = 0; i < r.path.length - 1; i++) {
+      const key = [r.path[i], r.path[i+1]].sort().join('|');
+      const coords = polylineCache[key] || await getRoadPolyline(r.path[i], r.path[i+1]);
+      if (!polylineCache[key]) polylineCache[key] = coords;
+      segCoords.push(coords);
+    }
+    const allPts = segCoords.flat();
+    const isBest = algo === bestAlgo;
+    const pl = L.polyline(allPts, {
+      color: ALGO_COLORS[algo],
+      weight: isBest ? 8 : 3,
+      opacity: isBest ? 0.95 : 0.4,
+      dashArray: isBest ? null : '6 5',
+    }).addTo(map);
+    pl.bindTooltip(`${algo}: ${r.dist}m`, { permanent: false, direction: 'center' });
+    allAlgosPathLayers.push(pl);
+  }
+
+  // Draw Google route as a distinct magenta line on top
+  if (googleResult && googleResult.polyline && googleResult.polyline.length > 1) {
+    googleRouteLayer = L.polyline(googleResult.polyline, {
+      color: '#ff2df7',
+      weight: 6,
+      opacity: 0.92,
+      dashArray: '3 7',
+      className: 'google-route-line',
+    }).addTo(map);
+    googleRouteLayer.bindTooltip(
+      `🗺 Google Maps: ${googleResult.distText} · ${googleResult.durationText}`,
+      { permanent: false, direction: 'center', className: 'google-tip' }
+    );
+  }
+
+  setMarkerColor(start, 'start');
+  setMarkerColor(end, 'end');
+
+  // Fit map to all paths
+  const allLayers = [...allAlgosPathLayers, ...(googleRouteLayer ? [googleRouteLayer] : [])];
+  if (allLayers.length) {
+    const group = L.featureGroup(allLayers);
+    if (group.getBounds().isValid()) map.fitBounds(group.getBounds(), { padding: [50, 50] });
+  }
+
+  // Show enhanced modal
+  showBestPathModal(results, bestAlgo, start, end, ALGO_COLORS, googleResult);
+
+  setStatus('done', 'Done');
+  document.getElementById('btn-all-best').disabled = false;
+}
+
+function showBestPathModal(results, bestAlgo, start, end, colors, googleResult) {
+  const existing = document.getElementById('best-path-modal');
+  if (existing) existing.remove();
+
+  const algos = ['BFS', 'DFS', 'Dijkstra', 'UCS', 'AStar'];
+  const rows = algos.map(algo => {
+    const r = results[algo];
+    const isBest = algo === bestAlgo;
+    const dist = r.dist === Infinity ? 'No path' : r.dist + ' m';
+    const gDist = googleResult ? googleResult.distance : null;
+    const diff  = (gDist && r.dist !== Infinity)
+      ? ((r.dist - gDist) / gDist * 100).toFixed(1)
+      : null;
+    const diffHtml = diff !== null
+      ? `<div class="bpm-diff ${parseFloat(diff) <= 5 ? 'ok' : 'hi'}">${diff > 0 ? '+' : ''}${diff}%</div>`
+      : '';
+    return `
+      <div class="bpm-row ${isBest ? 'bpm-best' : ''}">
+        <div class="bpm-dot" style="background:${colors[algo]}"></div>
+        <div class="bpm-algo">${algo}${isBest ? ' 🏆' : ''}</div>
+        <div class="bpm-dist">${dist}</div>
+        ${diffHtml}
+        <div class="bpm-vis">${r.visited} visited</div>
+        <div class="bpm-steps">${r.steps} steps</div>
+      </div>`;
+  }).join('');
+
+  // Google route section
+  let googleSection = '';
+  if (googleResult) {
+    const stepsHtml = googleResult.steps.slice(0, 8).map((st, i) => `
+      <div class="grt-step">
+        <div class="grt-num">${i + 1}</div>
+        <div class="grt-inst">${st.instruction}</div>
+        <div class="grt-meta">${st.distance} · ${st.duration}</div>
+      </div>`).join('');
+    const moreSteps = googleResult.steps.length > 8
+      ? `<div class="grt-more">+${googleResult.steps.length - 8} more steps…</div>` : '';
+
+    googleSection = `
+      <div class="grt-section">
+        <div class="grt-header">
+          <span class="grt-icon">🗺</span>
+          <span class="grt-title">Google Maps — Optimal Route</span>
+          <span class="grt-badge">GPS</span>
+        </div>
+        <div class="grt-summary">
+          <div class="grt-stat"><span class="grt-val">${googleResult.distText}</span><span class="grt-lbl">Distance</span></div>
+          <div class="grt-stat"><span class="grt-val">${googleResult.durationText}</span><span class="grt-lbl">Drive time</span></div>
+          <div class="grt-stat"><span class="grt-val">${googleResult.summary || 'Best route'}</span><span class="grt-lbl">Via</span></div>
+        </div>
+        <div class="grt-steps">${stepsHtml}${moreSteps}</div>
+      </div>`;
+  } else {
+    const hasKey = !!getGmapsKey();
+    googleSection = `
+      <div class="grt-section grt-no-key">
+        <div class="grt-header">
+          <span class="grt-icon">🗺</span>
+          <span class="grt-title">Google Maps Route</span>
+        </div>
+        <div class="grt-no-key-msg">
+          ${hasKey
+            ? '⚠ Could not fetch Google route. Check your API key has Directions API enabled.'
+            : '🔑 Add a Google Maps API key to see the real GPS-optimal route & turn-by-turn directions.'}
+        </div>
+        <button class="grt-add-key" id="grt-add-key-btn">
+          ${hasKey ? '🔄 Update API Key' : '🗝 Add API Key'}
+        </button>
+      </div>`;
+  }
+
+  const modal = document.createElement('div');
+  modal.id = 'best-path-modal';
+  modal.innerHTML = `
+    <div class="bpm-overlay" id="bpm-overlay"></div>
+    <div class="bpm-card">
+      <div class="bpm-header">
+        <div class="bpm-title">⚡ All Algorithms Compared</div>
+        <div class="bpm-sub">${start} → ${end}</div>
+        <button class="bpm-close" id="bpm-close">✕</button>
+      </div>
+      <div class="bpm-winner">
+        🏆 Best Graph Path: <span style="color:#00e87a;font-weight:700">${bestAlgo}</span>
+        — ${results[bestAlgo].dist === Infinity ? 'No path' : results[bestAlgo].dist + ' m · ' + (results[bestAlgo].path.length - 1) + ' hops'}
+      </div>
+      <div class="bpm-body">${rows}</div>
+      <div class="bpm-note">
+        Lines on map: coloured = graph algo paths · <span style="color:#ff2df7">━ ╌ ━</span> = Google GPS route
+      </div>
+      ${googleSection}
+    </div>`;
+  document.body.appendChild(modal);
+
+  document.getElementById('bpm-close').addEventListener('click', () => modal.remove());
+  document.getElementById('bpm-overlay').addEventListener('click', () => modal.remove());
+
+  const addKeyBtn = document.getElementById('grt-add-key-btn');
+  if (addKeyBtn) {
+    addKeyBtn.addEventListener('click', () => {
+      modal.remove();
+      showApiKeyModal((key) => {
+        if (key) {
+          const s = document.getElementById('sel-start').value;
+          const e = document.getElementById('sel-end').value;
+          if (s && e) { doReset(); setMarkerColor(s, 'start'); setMarkerColor(e, 'end'); runAllAlgosCompare(s, e); }
+        }
+      });
+    });
+  }
+
+  setTimeout(() => modal.classList.add('bpm-visible'), 10);
+}
+
 // ── RESET ─────────────────────────────────────────────────────
 function doReset() {
   timers.forEach(clearTimeout); timers = [];
@@ -785,6 +1326,10 @@ function doReset() {
   isRunning = false;
   if (pathLayer)  { map.removeLayer(pathLayer);  pathLayer  = null; }
   if (pathLayerB) { map.removeLayer(pathLayerB); pathLayerB = null; }
+  if (defaultPathLayer) { try { map.removeLayer(defaultPathLayer); } catch(e){} defaultPathLayer = null; }
+  if (googleRouteLayer) { try { map.removeLayer(googleRouteLayer); } catch(e){} googleRouteLayer = null; }
+  allAlgosPathLayers.forEach(l => { try { map.removeLayer(l); } catch(e){} });
+  allAlgosPathLayers = [];
   // Clear traversal edge highlights
   traversalLayers.forEach(pl => { try { map.removeLayer(pl); } catch(e){} });
   traversalLayers = [];
@@ -836,14 +1381,19 @@ async function initMap() {
 
   // Create markers
   Object.entries(CAMPUSES).forEach(([name, data]) => {
-    const marker = L.marker([data.lat, data.lng], { icon: makeEmojiIcon(name, COL.default, 38) }).addTo(map);
+    const marker = L.marker([data.lat, data.lng], { icon: makeMapPinIcon(name, COL.default, 40) }).addTo(map);
 
     marker.bindPopup(`
-      <div style="font-family:'JetBrains Mono',monospace;padding:12px 15px;min-width:180px">
-        <div style="font-size:22px;margin-bottom:5px">${data.emoji}</div>
-        <div style="font-size:13px;font-weight:700;color:#00d4ff;margin-bottom:3px">${name}</div>
-        <div style="font-size:11px;color:#7aa0be;margin-bottom:4px">${data.desc}</div>
-        <div style="font-size:9px;color:#4a7090">📍 ${data.lat.toFixed(5)}°N, ${data.lng.toFixed(5)}°E</div>
+      <div style="font-family:'JetBrains Mono',monospace;padding:0;min-width:200px;border-radius:10px;overflow:hidden">
+        <div style="position:relative">
+          <img src="${data.img}" style="width:100%;height:110px;object-fit:cover;display:block" onerror="this.style.display='none'" />
+          <div style="position:absolute;top:8px;left:8px;background:rgba(0,0,0,.65);border-radius:6px;padding:3px 8px;font-size:18px">${data.emoji}</div>
+        </div>
+        <div style="padding:10px 14px 12px">
+          <div style="font-size:13px;font-weight:700;color:#00d4ff;margin-bottom:2px">${name}</div>
+          <div style="font-size:11px;color:#7aa0be;margin-bottom:5px">${data.desc}</div>
+          <div style="font-size:9px;color:#4a7090">📍 ${data.lat.toFixed(5)}°N, ${data.lng.toFixed(5)}°E</div>
+        </div>
       </div>`, { closeButton: false });
 
     marker.on('click', () => {
@@ -854,8 +1404,14 @@ async function initMap() {
       updateLegendHighlights();
     });
 
-    const initial = `<div class="campus-tip"><div class="ct-name">${name}</div><div class="ct-desc">${data.desc}</div></div>`;
-    marker.bindTooltip(initial, { direction: 'top', offset: [0, -14], className: 'campus-tooltip', sticky: false, opacity: 0.97 });
+    // Rich image tooltip on hover
+    const tipHtml = `
+      <div class="campus-tip">
+        <img src="${data.img}" class="ct-img" onerror="this.style.display='none'" />
+        <div class="ct-name">${name}</div>
+        <div class="ct-desc">${data.desc}</div>
+      </div>`;
+    marker.bindTooltip(tipHtml, { direction: 'top', offset: [0, -16], className: 'campus-tooltip', sticky: false, opacity: 0.98 });
 
     marker.on('mouseover', () => marker.openTooltip());
     marker.on('mouseout', () => marker.closeTooltip());
@@ -873,9 +1429,59 @@ async function initMap() {
     });
   });
 
-  setRouteStatus('Loading road edges…', '');
+  updateLegendHighlights();
+
+  // Phase 1: fetch real road polylines for all graph edges (warms polylineCache)
+  setRouteStatus('Fetching real road geometry from OSRM…', '');
   await drawEdges();
+
+  // Phase 2: fetch road distances and update graph weights with real metres
   await preloadEdgeDistances();
+  setRouteStatus('Road network ready — select campuses to begin ✓', 'ok');
+}
+
+// ── DEFAULT SHORTEST PATH (green) ─────────────────────────────
+let defaultPathLayer = null;
+
+async function showDefaultShortestPath(startNode, endNode) {
+  const start = startNode || 'Campus 1';
+  const end   = endNode   || 'Campus 25';
+  if (defaultPathLayer) { try { map.removeLayer(defaultPathLayer); } catch(e){} defaultPathLayer = null; }
+
+  const steps = algoAStar(start, end);
+  const pathStep = steps.find(s => s.t === 'p');
+  if (!pathStep || !pathStep.path.length) return;
+
+  const path = pathStep.path;
+  const segCoords = [];
+  for (let i = 0; i < path.length - 1; i++) {
+    const key = [path[i], path[i+1]].sort().join('|');
+    const coords = polylineCache[key] || await getRoadPolyline(path[i], path[i+1]);
+    if (!polylineCache[key]) polylineCache[key] = coords;
+    segCoords.push(coords);
+  }
+
+  const allPoints = segCoords.flat();
+  defaultPathLayer = L.polyline(allPoints, {
+    color: '#00e87a',
+    weight: 6,
+    opacity: 0.85,
+    dashArray: null,
+    className: 'default-path-line',
+  }).addTo(map);
+
+  // Highlight start/end markers
+  setMarkerColor(start, 'start');
+  setMarkerColor(end, 'end');
+
+  // Show path in display
+  updatePathDisplay(path, '⚡ Shortest (A*): ', 'path-display');
+
+  // Show distance
+  let total = 0;
+  for (let i = 0; i < path.length - 1; i++) total += await getRoadDistance(path[i], path[i+1]);
+  document.getElementById('stat-d').textContent = total + ' m';
+  setRouteStatus('Default shortest path shown ✓', 'ok');
 }
 
 // ── UI EVENTS ─────────────────────────────────────────────────
@@ -919,7 +1525,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('compare-algo-sec').classList.toggle('hidden', !compareMode);
     document.getElementById('stats-single').classList.toggle('hidden', compareMode);
     document.getElementById('stats-compare').classList.toggle('hidden', !compareMode);
-    document.getElementById('btn-run').textContent = compareMode ? '⚡ Compare Algorithms' : '▶ Run Algorithm';
+    document.getElementById('btn-run').textContent = compareMode ? '⚡Compare' : '▶ Run Algorithm';
     doReset();
   });
 
@@ -931,6 +1537,17 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Sync legend highlights on dropdown change ──
   ['sel-start', 'sel-end'].forEach(id => {
     document.getElementById(id).addEventListener('change', updateLegendHighlights);
+  });
+
+  // ── All Best button ──
+  document.getElementById('btn-all-best').addEventListener('click', () => {
+    const start = document.getElementById('sel-start').value;
+    const end   = document.getElementById('sel-end').value;
+    doReset();
+    setMarkerColor(start, 'start');
+    setMarkerColor(end, 'end');
+    runAllAlgosCompare(start, end);
+    if (isMobile()) closeSidebar();
   });
 
   // ── Run button ──
@@ -966,6 +1583,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('sel-start').value = '';
     document.getElementById('sel-end').value = '';
     updateLegendHighlights();
+  });
+
+  // ── API Key button ──
+  document.getElementById('api-key-btn').addEventListener('click', () => {
+    showApiKeyModal((key) => {
+      if (key) setRouteStatus('Google Maps API key saved ✓', 'ok');
+    });
   });
 
   // ── Mode toggle (day/night) ──
@@ -1023,7 +1647,7 @@ document.addEventListener('DOMContentLoaded', () => {
         radius: 10, color: COL.start, fillColor: COL.start,
         fillOpacity: 0.9, weight: 3,
       }).addTo(map);
-      lm.bindPopup('<b style="color:#00c17a">📍 You are here</b>').openPopup();
+      lm.bindPopup('<b style="color:#00c17a"> You are here</b>').openPopup();
       setTimeout(() => { try { map.removeLayer(lm); } catch(e){}; }, 8000);
       setRouteStatus('Location found ✓', 'ok');
       setTimeout(() => setRouteStatus('Road data ready ✓', 'ok'), 3000);

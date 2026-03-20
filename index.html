@@ -1,81 +1,88 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>KIIT Campus — Graph Search Visualizer</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-
-<div id="app">
-
-  <!-- ══ HEADER ══ -->
-  <header id="header">
-    <div class="logo-block">
-      <div class="logo-icon">🗺</div>
-      <div class="logo-text">
-        <h1>K-Search</h1>
-        <span class="hdr-sub">Bhubaneswar · Odisha</span>
-      </div>
-    </div>
-
-    <button id="sidebar-toggle" class="icon-btn sidebar-toggle-btn" title="Toggle panel" aria-label="Toggle panel">☰</button>
-
-    <div id="status-badge" class="idle">
-      <div class="dot"></div>
-      <span>Idle</span>
-    </div>
-
-    <div class="hdr-center">
-      <label class="switch-label">
-        <input type="checkbox" id="compare-mode-chk" />
-        <span class="switch-track"><span class="switch-thumb"></span></span>
-        <span class="switch-txt">Compare</span>
-      </label>
-    </div>
-
-    <div class="hdr-controls">
-      <button id="mode-toggle" class="icon-btn" title="Toggle day/night">🌙</button>
-      <div class="view-toggle" role="tablist">
-        <button class="vt-btn active" data-view="satellite" title="Satellite">🛰</button>
-        <button class="vt-btn" data-view="traffic" title="Traffic">🚦</button>
-        <button class="vt-btn" data-view="terrain" title="Terrain">🗺</button>
-      </div>
-    </div>
-  </header>
-
-  <!-- ══ BODY ROW ══ -->
-  <div id="body-row">
-
-    <!-- Sidebar backdrop (mobile overlay) -->
-    <div id="sidebar-backdrop"></div>
-
-    <!-- ══ SIDEBAR ══ -->
-    <aside id="sidebar">
-      <div id="sidebar-handle"><div class="handle-bar"></div></div>
-      <div id="sidebar-inner">
-
-        <!-- Algorithm (single mode) -->
-        <div class="psec" id="single-algo-sec">
-          <div class="slbl">Algorithm</div>
-          <div class="chips">
-            <div class="chip active" data-algo="BFS">BFS</div>
-            <div class="chip" data-algo="DFS">DFS</div>
-            <div class="chip" data-algo="Dijkstra">Dijkstra</div>
-            <div class="chip" data-algo="UCS">UCS</div>
-            <div class="chip" data-algo="AStar">A*</div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>KIIT Campus — Graph Search Visualizer</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- ══ HEADER ══ -->
+      <header id="header">
+        <div class="logo-block">
+          <div class="logo-icon"><img src="images/KIIT_logo.png" style="height: 20px; width: 20px;"></div>
+          <div class="logo-text">
+            <h1>K-Search</h1>
+            <span class="hdr-sub">Bhubaneswar · Odisha</span>
           </div>
         </div>
-
-        <!-- Algorithm comparison -->
-        <div class="psec hidden" id="compare-algo-sec">
-          <div class="slbl">Compare Algorithms</div>
-          <div class="compare-pickers">
-            <div class="cp-col">
-              <div class="cp-head" style="color:var(--acc)">● Algo A</div>
-              <div class="chips chips-a">
+ 
+        <button
+          id="sidebar-toggle"
+          class="icon-btn sidebar-toggle-btn"
+          title="Toggle panel"
+          aria-label="Toggle panel"
+        >
+          ☰
+        </button>
+ 
+        <div id="status-badge" class="idle">
+          <div class="dot"></div>
+          <span>Idle</span>
+        </div>
+ 
+        <div class="hdr-center">
+          <label class="switch-label">
+            <input type="checkbox" id="compare-mode-chk" />
+            <span class="switch-track"><span class="switch-thumb"></span></span>
+            <span class="switch-txt" style="margin-top: 32px;align-items: center; margin-inline-start: -50px; ">Compare mode</span>
+          </label>
+        </div>
+ 
+        <div class="hdr-controls">
+          <button id="api-key-btn" class="icon-btn" title="Set Google Maps API Key">🗝</button>
+          <button id="mode-toggle" class="icon-btn" title="Toggle day/night">
+            🌙
+          </button>
+          <div class="view-toggle" role="tablist">
+            <button
+              class="vt-btn active"
+              data-view="satellite"
+              title="Satellite"
+            >
+              🛰
+            </button>
+            <button class="vt-btn" data-view="traffic" title="Traffic">
+              <img src="images\traffic_bg.png" alt="Traffic" style="width: 16px; height: 16px; filter: invert(1)" />
+            </button>
+            <button class="vt-btn" data-view="terrain" title="Terrain">
+              <img src="images/terrain.png" style="width: 16px; height: 16px; filter: invert(1)" >
+            </button>
+          </div>
+        </div>
+      </header>
+ 
+      <!-- ══ BODY ROW ══ -->
+      <div id="body-row">
+        <!-- Sidebar backdrop (mobile overlay) -->
+        <div id="sidebar-backdrop"></div>
+ 
+        <!-- ══ SIDEBAR ══ -->
+        <aside id="sidebar">
+          <div id="sidebar-handle"><div class="handle-bar"></div></div>
+          <div id="sidebar-inner">
+            <!-- Algorithm (single mode) -->
+            <div class="psec" id="single-algo-sec">
+              <div class="slbl">Algorithm</div>
+              <div class="chips">
                 <div class="chip active" data-algo="BFS">BFS</div>
                 <div class="chip" data-algo="DFS">DFS</div>
                 <div class="chip" data-algo="Dijkstra">Dijkstra</div>
@@ -83,140 +90,211 @@
                 <div class="chip" data-algo="AStar">A*</div>
               </div>
             </div>
-            <div class="cp-divider">vs</div>
-            <div class="cp-col">
-              <div class="cp-head" style="color:var(--ora)">● Algo B</div>
-              <div class="chips chips-b">
-                <div class="chip" data-algo="BFS">BFS</div>
-                <div class="chip" data-algo="DFS">DFS</div>
-                <div class="chip active" data-algo="Dijkstra">Dijkstra</div>
-                <div class="chip" data-algo="UCS">UCS</div>
-                <div class="chip" data-algo="AStar">A*</div>
+ 
+            <!-- Algorithm comparison -->
+            <div class="psec hidden" id="compare-algo-sec">
+              <div class="slbl">Compare Algorithms</div>
+              <div class="compare-pickers">
+                <div class="cp-col">
+                  <div class="cp-head" style="color: var(--acc)">● Algo A</div>
+                  <div class="chips chips-a">
+                    <div class="chip active" data-algo="BFS">BFS</div>
+                    <div class="chip" data-algo="DFS">DFS</div>
+                    <div class="chip" data-algo="Dijkstra">Dijkstra</div>
+                    <div class="chip" data-algo="UCS">UCS</div>
+                    <div class="chip" data-algo="AStar">A*</div>
+                  </div>
+                </div>
+                <div class="cp-divider">vs</div>
+                <div class="cp-col">
+                  <div class="cp-head" style="color: var(--ora)">● Algo B</div>
+                  <div class="chips chips-b">
+                    <div class="chip" data-algo="BFS">BFS</div>
+                    <div class="chip" data-algo="DFS">DFS</div>
+                    <div class="chip active" data-algo="Dijkstra">Dijkstra</div>
+                    <div class="chip" data-algo="UCS">UCS</div>
+                    <div class="chip" data-algo="AStar">A*</div>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        <!-- Route -->
-        <div class="psec">
-          <div class="slbl">Route</div>
-          <div class="cg">
-            <label for="sel-start">Start Campus</label>
-            <select id="sel-start"><option value="">— Select start —</option></select>
-          </div>
-          <div class="cg">
-            <label for="sel-end">Destination</label>
-            <select id="sel-end"><option value="">— Select destination —</option></select>
-          </div>
-          <div id="route-status"></div>
-        </div>
-
-        <!-- Speed -->
-        <div class="psec">
-          <div class="slbl">Speed</div>
-          <div class="srow">
-            <span class="spd-lbl">Slow</span>
-            <input type="range" id="spd-slider" min="1" max="100" value="50" />
-            <span class="spd-lbl">Fast</span>
-            <span class="spd-val" id="spd-val">50x</span>
-          </div>
-        </div>
-
-        <!-- Buttons -->
-        <div class="psec btn-row-sec">
-          <button class="btn btn-run" id="btn-run">▶ Run</button>
-          <button class="btn btn-reset" id="btn-reset">↺ Reset</button>
-        </div>
-
-        <!-- Stats -->
-        <div class="psec">
-          <div class="slbl">Statistics</div>
-          <div class="sgrid" id="stats-single">
-            <div class="sc"><div class="v" id="stat-v">0</div><div class="l">Visited</div></div>
-            <div class="sc"><div class="v" id="stat-s">0</div><div class="l">Steps</div></div>
-            <div class="sc full"><div class="v" id="stat-d">—</div><div class="l">Road Distance</div></div>
-          </div>
-          <div class="compare-stats hidden" id="stats-compare">
-            <div class="cmp-stat-row">
-              <div class="cmp-label" style="color:var(--acc)">Algo A</div>
-              <div class="cmp-values">
-                <span class="cv">Visited: <b id="cmp-v-a">—</b></span>
-                <span class="cv">Steps: <b id="cmp-s-a">—</b></span>
-                <span class="cv">Dist: <b id="cmp-d-a">—</b></span>
+ 
+            <!-- Route -->
+            <div class="psec">
+              <div class="slbl">Route</div>
+              <div class="cg">
+                <label for="sel-start">Start Campus</label>
+                <select id="sel-start">
+                  <option value="">— Select start —</option>
+                </select>
+              </div>
+              <div class="cg">
+                <label for="sel-end">Destination</label>
+                <select id="sel-end">
+                  <option value="">— Select destination —</option>
+                </select>
+              </div>
+              <div id="route-status"></div>
+            </div>
+ 
+            <!-- Speed -->
+            <div class="psec">
+              <div class="slbl">Speed</div>
+              <div class="srow">
+                <span class="spd-lbl">Slow</span>
+                <input
+                  type="range"
+                  id="spd-slider"
+                  min="1"
+                  max="100"
+                  value="50"
+                />
+                <span class="spd-lbl">Fast</span>
+                <span class="spd-val" id="spd-val">50x</span>
               </div>
             </div>
-            <div class="cmp-divider-h"></div>
-            <div class="cmp-stat-row">
-              <div class="cmp-label" style="color:var(--ora)">Algo B</div>
-              <div class="cmp-values">
-                <span class="cv">Visited: <b id="cmp-v-b">—</b></span>
-                <span class="cv">Steps: <b id="cmp-s-b">—</b></span>
-                <span class="cv">Dist: <b id="cmp-d-b">—</b></span>
+ 
+            <!-- Buttons -->
+            <div class="psec btn-row-sec">
+              <button class="btn btn-run" id="btn-run">▶ Run</button>
+              <button class="btn btn-reset" id="btn-reset">↺ Reset</button>
+              <button
+                class="btn btn-all-best"
+                id="btn-all-best"
+                title="Run all 5 algorithms and show the best path"
+              >
+                ⚡ Best of All
+              </button>
+            </div>
+ 
+            <!-- Stats -->
+            <div class="psec">
+              <div class="slbl">Statistics</div>
+              <div class="sgrid" id="stats-single">
+                <div class="sc">
+                  <div class="v" id="stat-v">0</div>
+                  <div class="l">Visited</div>
+                </div>
+                <div class="sc">
+                  <div class="v" id="stat-s">0</div>
+                  <div class="l">Steps</div>
+                </div>
+                <div class="sc full">
+                  <div class="v" id="stat-d">—</div>
+                  <div class="l">Road Distance</div>
+                </div>
+              </div>
+              <div class="compare-stats hidden" id="stats-compare">
+                <div class="cmp-stat-row">
+                  <div class="cmp-label" style="color: var(--acc)">Algo A</div>
+                  <div class="cmp-values">
+                    <span class="cv">Visited: <b id="cmp-v-a">—</b></span>
+                    <span class="cv">Steps: <b id="cmp-s-a">—</b></span>
+                    <span class="cv">Dist: <b id="cmp-d-a">—</b></span>
+                  </div>
+                </div>
+                <div class="cmp-divider-h"></div>
+                <div class="cmp-stat-row">
+                  <div class="cmp-label" style="color: var(--ora)">Algo B</div>
+                  <div class="cmp-values">
+                    <span class="cv">Visited: <b id="cmp-v-b">—</b></span>
+                    <span class="cv">Steps: <b id="cmp-s-b">—</b></span>
+                    <span class="cv">Dist: <b id="cmp-d-b">—</b></span>
+                  </div>
+                </div>
+                <div class="cmp-winner" id="cmp-winner"></div>
               </div>
             </div>
-            <div class="cmp-winner" id="cmp-winner"></div>
+ 
+            <!-- Path -->
+            <div class="psec">
+              <div class="slbl">NODES TRAVERSED</div>
+              <div id="path-display">Select start &amp; end, then run…</div>
+              <div id="path-display-b" class="hidden"></div>
+            </div>
+ 
+            <!-- State legend -->
+            <div class="psec">
+              <div class="slbl">Node States</div>
+              <div class="state-legend">
+                <div class="sl-item">
+                  <div class="sl-dot" style="background: #00e87a"></div>
+                  Start
+                </div>
+                <div class="sl-item">
+                  <div class="sl-dot" style="background: #ff2d55"></div>
+                  End
+                </div>
+                <div class="sl-item">
+                  <div class="sl-dot" style="background: #ffd200"></div>
+                  Visited
+                </div>
+                <div class="sl-item">
+                  <div class="sl-dot" style="background: #a855f7"></div>
+                  Frontier
+                </div>
+                <div class="sl-item">
+                  <div class="sl-dot" style="background: #00d4ff"></div>
+                  Unvisited
+                </div>
+                <div class="sl-item">
+                  <div class="sl-dot" style="background: #0b84ff"></div>
+                  Path A
+                </div>
+                <div class="sl-item">
+                  <div class="sl-dot" style="background: #ff6b35"></div>
+                  Path B
+                </div>
+              </div>
+            </div>
+ 
+            <!-- Campus legend -->
+            <div class="psec">
+              <div class="slbl">Campuses — tap to select</div>
+              <div class="campus-legend" id="campus-legend"></div>
+            </div>
+ 
+            <!-- Pseudocode -->
+            <div class="psec">
+              <div class="slbl">Pseudocode</div>
+              <div id="pbox"></div>
+            </div>
+ 
+            <!-- Log -->
+            <div class="psec">
+              <div class="slbl">Exploration Log</div>
+              <div id="nlog"></div>
+            </div>
           </div>
-        </div>
-
-        <!-- Path -->
-        <div class="psec">
-          <div class="slbl">Path Found</div>
-          <div id="path-display">Select start &amp; end, then run…</div>
-          <div id="path-display-b" class="hidden"></div>
-        </div>
-
-        <!-- State legend -->
-        <div class="psec">
-          <div class="slbl">Node States</div>
-          <div class="state-legend">
-            <div class="sl-item"><div class="sl-dot" style="background:#00e87a"></div>Start</div>
-            <div class="sl-item"><div class="sl-dot" style="background:#ff2d55"></div>End</div>
-            <div class="sl-item"><div class="sl-dot" style="background:#ffd200"></div>Visited</div>
-            <div class="sl-item"><div class="sl-dot" style="background:#a855f7"></div>Frontier</div>
-            <div class="sl-item"><div class="sl-dot" style="background:#00d4ff"></div>Unvisited</div>
-            <div class="sl-item"><div class="sl-dot" style="background:#0b84ff"></div>Path A</div>
-            <div class="sl-item"><div class="sl-dot" style="background:#ff6b35"></div>Path B</div>
+          <!-- /sidebar-inner -->
+        </aside>
+ 
+        <!-- ══ MAP ══ -->
+        <main id="map-wrap">
+          <div id="map"></div>
+          <div id="map-controls">
+            <button id="locate-btn" class="map-ctrl-btn" title="Locate me">
+              📍
+            </button>
+            <button id="north-btn" class="map-ctrl-btn" title="Reset to North">
+              <span id="north-arrow">⬆</span>
+              <span class="ctrl-label">N</span>
+            </button>
+            <button
+              id="zoom-campus-btn"
+              class="map-ctrl-btn"
+              title="Fit all campuses"
+            >
+              ⊞
+            </button>
           </div>
-        </div>
-
-        <!-- Campus legend -->
-        <div class="psec">
-          <div class="slbl">Campuses — tap to select</div>
-          <div class="campus-legend" id="campus-legend"></div>
-        </div>
-
-        <!-- Pseudocode -->
-        <div class="psec">
-          <div class="slbl">Pseudocode</div>
-          <div id="pbox"></div>
-        </div>
-
-        <!-- Log -->
-        <div class="psec">
-          <div class="slbl">Exploration Log</div>
-          <div id="nlog"></div>
-        </div>
-
-      </div><!-- /sidebar-inner -->
-    </aside>
-
-    <!-- ══ MAP ══ -->
-    <main id="map-wrap">
-      <div id="map"></div>
-      <div id="map-controls">
-        <button id="locate-btn" class="map-ctrl-btn" title="Locate me">📍</button>
-        <button id="north-btn" class="map-ctrl-btn" title="Reset to North">
-          <span id="north-arrow">⬆</span>
-          <span class="ctrl-label">N</span>
-        </button>
-        <button id="zoom-campus-btn" class="map-ctrl-btn" title="Fit all campuses">⊞</button>
+        </main>
       </div>
-    </main>
-
-  </div><!-- /body-row -->
-</div><!-- /app -->
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="script.js"></script>
-</body>
+      <!-- /body-row -->
+    </div>
+    <!-- /app -->
+ 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="script.js"></script>
+  </body>
 </html>
